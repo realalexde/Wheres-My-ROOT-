@@ -24,7 +24,7 @@ run_check() {
   "$@" && pass "$NAME" || fail "$NAME"
 }
 
-echo "== WMROOT :: Android Root / Integrity Check =="
+echo "== Where's my ROOT?? :: Android Root / Integrity Check =="
 echo
 
 # --- CHECKS ---
