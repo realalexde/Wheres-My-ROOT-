@@ -70,6 +70,3 @@ https://github.com/realalexde/Wheres-My-ROOT-
 - ✅ **Root probability %**
 
 ---
-
-**Canvas-ready Markdown** - copy this entire block into your GitHub README.md! 🎨
-
