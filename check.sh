@@ -24,57 +24,73 @@ run_check() {
   "$@" && pass "$NAME" || fail "$NAME"
 }
 
-echo "== Where's my ROOT?? :: Advanced Android Root / Integrity Check v2.0 =="
+echo "== Where's my ROOT?? :: Advanced Android Root / Integrity Check v4.0 =="
 echo
 
 # --- CORE SYSTEM CHECKS ---
+echo "🔍 CORE SYSTEM INTEGRITY:"
 run_check "Shell not root (uid!=0)" sh -c '! id | grep -q "uid=0"'
-run_check "Bootloader locked" sh -c 'getprop ro.boot.vbmeta.device_state | grep -q locked'
-run_check "Verified Boot GREEN" sh -c 'getprop ro.boot.verifiedbootstate | grep -q green'
+run_check "Bootloader locked" sh -c 'getprop ro.boot.vbmeta.device_state 2>/dev/null | grep -q locked'
+run_check "Verified Boot GREEN" sh -c 'getprop ro.boot.verifiedbootstate 2>/dev/null | grep -q green'
 run_check "/system mounted ro" sh -c '! mount | grep " /system " | grep -q rw'
 run_check "/vendor mounted ro" sh -c '! mount | grep " /vendor " | grep -q rw'
-run_check "ro.secure=1" sh -c 'getprop ro.secure | grep -q 1'
-run_check "ro.debuggable=0" sh -c 'getprop ro.debuggable | grep -q 0'
-run_check "Build type user" sh -c 'getprop ro.build.type | grep -q user'
-run_check "Build tags release-keys" sh -c 'getprop ro.build.tags | grep -q release-keys'
-run_check "SELinux enforcing" sh -c 'getenforce | grep -q Enforcing'
+run_check "ro.secure=1" sh -c 'getprop ro.secure 2>/dev/null | grep -q 1'
+run_check "ro.debuggable=0" sh -c 'getprop ro.debuggable 2>/dev/null | grep -q 0'
+run_check "Build type user" sh -c 'getprop ro.build.type 2>/dev/null | grep -q user'
+run_check "Build tags release-keys" sh -c 'getprop ro.build.tags 2>/dev/null | grep -q release-keys'
+run_check "SELinux enforcing" sh -c 'getenforce 2>/dev/null | grep -q Enforcing'
+
+echo
 
 # --- ROOT BINARY CHECKS ---
+echo "🔍 ROOT BINARIES:"
 run_check "No su in PATH" sh -c '! command -v su >/dev/null 2>&1'
-for path in /system/bin/su /system/xbin/su /sbin/su /vendor/bin/su /data/local/tmp/su; do
-  run_check "No su binary: $path" sh -c '! [ -e "'"$path"'" ]'
+for path in /system/bin/su /system/xbin/su /sbin/su /vendor/bin/su /data/local/tmp/su /data/local/bin/su; do
+  run_check "No su binary: $(basename "$path")" sh -c '! [ -e "'"$path"'" ]'
 done
 
+echo
+
 # --- MAGISKSU CHECKS ---
-run_check "No Magisk mount" sh -c '! mount | grep -q magisk'
-run_check "No Magisk tmpfs" sh -c '! mount | grep -q /magisk'
-run_check "No Magisk paths" sh -c '! [ -e /sbin/.magisk -o -e /data/adb/magisk ]'
-run_check "No Magisk modules" sh -c '! [ -d /data/adb/modules ] || ! ls /data/adb/modules | grep -q magisk'
-run_check "No magisk binary" sh -c '! command -v magisk >/dev/null 2>&1'
-
-# --- KERNELSU CHECKS ---
+echo "🔍 MAGISK/KERNELSU:"
+run_check "No Magisk mount" sh -c '! mount | grep -qE "(magisk|/magisk|/sbin/.magisk)"'
+run_check "No Magisk paths" sh -c '! [ -e /sbin/.magisk -o -e /data/adb/magisk -o -e /cache/magisk.log ]'
+run_check "No Magisk modules" sh -c '! [ -d /data/adb/modules ] || ! ls /data/adb/modules 2>/dev/null | grep -qE "(magisk|ksu)"'
 run_check "No KernelSU" sh -c '! [ -e /data/adb/ksud -o -e /data/adb/modules/KernelSU ]'
+run_check "No APatch" sh -c '! [ -e /data/adb/ap -o -e /data/adb/modules/APatch ]'
 
-# --- BUSYBOX & TOYS ---
-run_check "No busybox" sh -c '! command -v busybox >/dev/null 2>&1'
+echo
 
-# --- SUPERUSER APPS ---
+# --- APPS & TOOLS ---
+echo "🔍 ROOT APPS/TOOLS:"
 run_check "No Superuser.apk" sh -c '! [ -e /system/app/Superuser.apk -o -e /system/priv-app/Superuser.apk ]'
-run_check "No SuperSU" sh -c '! pm list packages 2>/dev/null | grep -q com.noshufou.android.su'
+run_check "No SuperSU app" sh -c '! pm list packages 2>/dev/null | grep -qE "(noshufou|supersu|superuser)"'
+run_check "No busybox" sh -c '! command -v busybox >/dev/null 2>&1'
+run_check "No Root Explorer" sh -c '! pm list packages 2>/dev/null | grep -qE "(rootexplorer|solidexplorer)"'
 
-# --- ADVANCED SYSTEMLESS CHECKS ---
-run_check "No suspicious init.rc" sh -c '! grep -q "su " /init.rc 2>/dev/null'
-run_check "No suspicious fstab" sh -c '! grep -q "su " /vendor/etc/fstab.* 2>/dev/null'
-run_check "No overlayfs root" sh -c '! mount | grep -q overlay && ! mount | grep -q /data'
+echo
 
-# --- EMULATOR DETECTION ---
-run_check "Not emulator (qemu)" sh -c '! getprop ro.kernel.qemu | grep -q 1'
-run_check "Not emulator (build)" sh -c '! getprop ro.build.characteristics | grep -q emulator'
+# --- ADVANCED CHECKS ---
+echo "🔍 ADVANCED:"
+run_check "No suspicious init.rc" sh -c '! grep -qr "su>" /init.rc /system/etc/init 2>/dev/null'
+run_check "No overlayfs root" sh -c '! mount | grep -q "overlay" && mount | grep -q "/data "'
+run_check "No qemu/emulator" sh -c '! getprop ro.kernel.qemu 2>/dev/null | grep -q 1'
+run_check "No test build props" sh -c '! grep -q "test-keys" /system/build.prop 2>/dev/null'
+run_check "No Xposed" sh -c '! [ -e /system/framework/XposedBridge.jar ]'
 
-# --- Play Integrity hook (unchanged) ---
-[ -f /data/local/tmp/wmroot_integrity.ok ] && \
-  run_check "Play Integrity DEVICE/STRONG" true || \
-  run_check "Play Integrity DEVICE/STRONG" false
+echo
+
+# --- Play Integrity - 3 отдельных файла ---
+echo "🔍 PLAY INTEGRITY:"
+BASIC_OK=0 DEVICE_OK=0 STRONG_OK=0
+
+[ -f /data/local/tmp/wmroot_basic.ok ] && BASIC_OK=1
+[ -f /data/local/tmp/wmroot_device.ok ] && DEVICE_OK=1  
+[ -f /data/local/tmp/wmroot_strong.ok ] && STRONG_OK=1
+
+run_check "Play Integrity BASIC" sh -c "[ $BASIC_OK -eq 1 ]"
+run_check "Play Integrity DEVICE" sh -c "[ $DEVICE_OK -eq 1 ]"
+run_check "Play Integrity STRONG" sh -c "[ $STRONG_OK -eq 1 ]"
 
 echo
 echo "== RESULT =="
@@ -87,14 +103,18 @@ PROB=$((FAILED * 100 / TOTAL))
 echo "Root probability: ${PROB}%"
 
 echo
+echo "=== PLAY INTEGRITY STATUS ==="
+echo "BASIC     $( [ $BASIC_OK -eq 1 ] && echo "✅" || echo "❌" )"
+echo "DEVICE    $( [ $DEVICE_OK -eq 1 ] && echo "✅" || echo "❌" )"
+echo "STRONG    $( [ $STRONG_OK -eq 1 ] && echo "✅" || echo "❌" )"
+
+echo
 if [ $COMPROMISED -eq 1 ]; then
-  echo "❌ DEVICE STATUS: ROOTED"
-  echo "    Failed checks indicate possible root/modifications"
+  echo "✅ ROOT DETECTED"
 else
-  echo "✅ DEVICE STATUS: NO EVIDENCE OF ROOT"
-  echo "    Device appears clean and unmodified"
+  echo "❌ NO ROOT DETECTED"
 fi
 
 echo
-echo "=== DETAILED BREAKDOWN ==="
-echo "COMPROMISED=$COMPROMISED TOTAL=$TOTAL PASSED=$PASSED FAILED=$FAILED"
+echo "=== STATS ==="
+echo "COMPROMISED=$COMPROMISED | TOTAL=$TOTAL | PASS=$PASSED | FAIL=$FAILED"
